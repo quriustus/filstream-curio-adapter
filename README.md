@@ -50,7 +50,7 @@ Since Filecoin storage is immutable, moderation operates at the **index/distribu
 |-----------|---------|---------|
 | **DenyList** | `Add`, `Remove`, `IsDenied`, `List` | Maintain blocked content registry |
 | **ModerationQueue** | `Submit`, `Review`, `Escalate`, `GetPending` | Content flag lifecycle |
-| **SyncBroadcaster** | `BroadcastDenylist`, `SyncSeeder` | Push denylist updates to seeders |
+| **SyncBroadcaster** | `BroadcastDenylist`, `BroadcastBloom`, `SyncSeeder` | Push denylist updates to seeders |
 | **AuditLog** | `Append`, `GetByContent`, `GetByFlag`, `GetAll` | Full audit trail |
 
 **Key types:**
@@ -66,6 +66,33 @@ Since Filecoin storage is immutable, moderation operates at the **index/distribu
 4. All actions logged to audit trail
 
 **Auto-escalation:** Configurable threshold (default: 3 flags in 1 hour) triggers automatic escalation for review.
+
+### Bloom Filter Denylist (`pkg/moderation/bloom.go`)
+
+Seeders need a fast, compact way to check whether content is denied *before* serving each segment. The `DenylistBloom` is a Bloom filter optimized for this:
+
+- **`NewDenylistBloom(estimatedItems, falsePositiveRate)`** — Create a filter sized for your denylist
+- **`Add(contentHash)`** — Add a denied content hash
+- **`MayContain(contentHash) bool`** — Fast pre-serve check (near-zero latency)
+- **`Serialize() / Deserialize()`** — Compact binary format for network sync
+- **`Merge(other)`** — Combine filters from multiple moderation sources
+
+**Seeder integration:**
+```go
+// On seeder startup / periodic sync
+data := receiveBloomFromNetwork()
+bloom, _ := moderation.Deserialize(data)
+
+// Before serving every segment
+if bloom.MayContain(segmentCID) {
+    // Denied — do not serve, check authoritative denylist to confirm
+    return ErrContentDenied
+}
+// Safe to serve
+```
+
+**Size:** ~1.2KB for 1,000 items at 1% false positive rate. Synced to seeders via `BroadcastBloom()`.
+Seeders must honor denylist updates within 10 minutes or face delisting.
 
 ### Mock Backend (`internal/mock/`)
 

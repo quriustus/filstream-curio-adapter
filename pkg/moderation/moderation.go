@@ -123,6 +123,7 @@ type ModerationQueue interface {
 // SyncBroadcaster propagates denylist updates to seeder nodes.
 type SyncBroadcaster interface {
 	BroadcastDenylist(seederIDs []string) error
+	BroadcastBloom(bloom *DenylistBloom) error
 	SyncSeeder(seederID string) error
 }
 

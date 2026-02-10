@@ -177,6 +177,10 @@ func NewMockSyncBroadcaster() *MockSyncBroadcaster {
 	return &MockSyncBroadcaster{}
 }
 
+func (m *MockSyncBroadcaster) BroadcastBloom(bloom *DenylistBloom) error {
+	return nil
+}
+
 func (m *MockSyncBroadcaster) BroadcastDenylist(seederIDs []string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
