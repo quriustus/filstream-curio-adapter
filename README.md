@@ -16,6 +16,11 @@ Go adapter connecting [FilStream](https://filstream.io) (decentralized video str
                        │               │
                        │ pkg/policy/   │
                        │  Scoring      │
+                       │               │
+                       │ pkg/moderation│
+                       │  DenyList     │
+                       │  DMCA         │
+                       │  AuditLog     │
                        └───────────────┘
 ```
 
@@ -36,6 +41,31 @@ Node scoring framework with configurable weights:
 - **Geo label boost** — additive bonus for geo-matching nodes
 - **Half-open proof probes** — degraded nodes get periodic probe attempts
 - **Configurable weights** — `LatencyWeight`, `GeoBoost`, `ProofGraceMisses`, etc.
+
+### Content Moderation (`pkg/moderation/`)
+
+Since Filecoin storage is immutable, moderation operates at the **index/distribution layer** — denying discovery and delivery rather than deleting data.
+
+| Interface | Methods | Purpose |
+|-----------|---------|---------|
+| **DenyList** | `Add`, `Remove`, `IsDenied`, `List` | Maintain blocked content registry |
+| **ModerationQueue** | `Submit`, `Review`, `Escalate`, `GetPending` | Content flag lifecycle |
+| **SyncBroadcaster** | `BroadcastDenylist`, `SyncSeeder` | Push denylist updates to seeders |
+| **AuditLog** | `Append`, `GetByContent`, `GetByFlag`, `GetAll` | Full audit trail |
+
+**Key types:**
+- `ContentFlag` — report with category (copyright/illegal/abuse), evidence, timestamp
+- `DMCANotice` / `DMCACounterNotice` — DMCA workflow with 10-day counter-notice timer
+- `EscalationConfig` — auto-escalation threshold (N flags in X hours)
+- `AuditRecord` — who flagged, when, action taken, by whom
+
+**DMCA workflow:**
+1. Receive `DMCANotice` → content added to denylist immediately
+2. Uploader may file `DMCACounterNotice` → 10-day waiting period starts
+3. If claimant doesn't file court action within 10 days → content restored
+4. All actions logged to audit trail
+
+**Auto-escalation:** Configurable threshold (default: 3 flags in 1 hour) triggers automatic escalation for review.
 
 ### Mock Backend (`internal/mock/`)
 
